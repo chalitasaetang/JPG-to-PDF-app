@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>JPG → PDF</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #080B14;
+    --surface: #10152357;
+    --surface-solid: #10152A;
+    --surface-raised: #171D33;
+    --border: #232B45;
+    --border-soft: #1A2038;
+    --blue: #3B82F6;
+    --blue-bright: #5B9DFF;
+    --blue-dim: #1E4FA3;
+    --text: #E9ECF6;
+    --text-dim: #8891AC;
+    --text-faint: #545E7D;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  * { font-family: 'Inter', -apple-system, sans-serif; }
+  .mono { font-family: 'IBM Plex Mono', monospace; }
+  body { -webkit-tap-highlight-color: transparent; background: var(--bg); }
+  .rotate-90 { transform: rotate(90deg); }
+  .rotate-180 { transform: rotate(180deg); }
+  .rotate-270 { transform: rotate(270deg); }
+  ::-webkit-scrollbar { display: none; }
+
+  .app-shell {
+    background:
+      radial-gradient(ellipse 600px 300px at 50% 0%, rgba(59,130,246,0.13), transparent),
+      var(--bg);
+  }
+  .glass-header {
+    background: rgba(8,11,20,0.85);
+    backdrop-filter: blur(16px);
+    border-bottom: 1px solid var(--border-soft);
+  }
+  .mark {
+    width: 38px; height: 38px;
+    background: linear-gradient(145deg, #3B82F6, #1E4FA3);
+    box-shadow: 0 4px 16px -4px rgba(59,130,246,0.5), inset 0 1px 0 rgba(255,255,255,0.15);
+  }
+  .empty-ring {
+    width: 84px; height: 84px;
+    border: 1.5px dashed var(--border);
+    background: radial-gradient(circle at 50% 40%, rgba(59,130,246,0.08), transparent 70%);
+  }
+  .img-card {
+    background: linear-gradient(180deg, var(--surface-raised), var(--surface-solid));
+    border: 1px solid var(--border-soft);
+    position: relative;
+  }
+  .img-card::before {
+    content: '';
+    position: absolute; left: 0; top: 10px; bottom: 10px; width: 3px;
+    background: linear-gradient(180deg, var(--blue-bright), var(--blue-dim));
+    border-radius: 0 3px 3px 0;
+  }
+  .thumb-frame {
+    background: #05070D;
+    border: 1px solid var(--border-soft);
+  }
+  .icon-btn {
+    background: #0C1120;
+    border: 1px solid var(--border-soft);
+    color: var(--text-dim);
+    transition: all .15s ease;
+  }
+  .icon-btn:active { background: #171D33; transform: scale(0.93); }
+  .icon-btn:disabled { opacity: 0.25; }
+  .icon-btn.danger:active { background: rgba(239,68,68,0.12); border-color: rgba(239,68,68,0.3); color: #F87171; }
+
+  .btn-ghost {
+    background: var(--surface-raised);
+    border: 1px solid var(--border);
+    color: var(--text);
+    transition: all .15s ease;
+  }
+  .btn-ghost:active { background: #1D2440; border-color: #2C3554; }
+
+  .btn-primary {
+    background: linear-gradient(155deg, #4C8DFF, #2563EB 55%, #1D4ED8);
+    box-shadow: 0 8px 24px -8px rgba(37,99,235,0.6), inset 0 1px 0 rgba(255,255,255,0.2);
+    color: #F5F8FF;
+    transition: transform .15s ease, box-shadow .15s ease;
+  }
+  .btn-primary:active { transform: scale(0.98); box-shadow: 0 4px 14px -6px rgba(37,99,235,0.5); }
+  .btn-primary:disabled { opacity: 0.6; }
+
+  .bottom-bar {
+    background: rgba(8,11,20,0.92);
+    backdrop-filter: blur(20px);
+    border-top: 1px solid var(--border-soft);
+  }
+
+  .modal-card {
+    background: linear-gradient(180deg, #141A30, #0E1324);
+    border: 1px solid var(--border);
+    box-shadow: 0 -20px 60px -20px rgba(0,0,0,0.6);
+  }
+  .field-input {
+    background: #0A0E1C;
+    border: 1px solid var(--border);
+    color: var(--text);
+    transition: border-color .15s ease;
+  }
+  .field-input:focus-within, .field-input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(59,130,246,0.15); }
+
+  .toast-el {
+    background: var(--surface-raised);
+    border: 1px solid var(--border);
+    color: var(--text);
+    box-shadow: 0 12px 32px -8px rgba(0,0,0,0.5);
+  }
+</style>
+</head>
+<body class="min-h-screen">
+
+<div class="app-shell max-w-md mx-auto min-h-screen flex flex-col">
+
+  <!-- Header -->
+  <header class="sticky top-0 z-10 glass-header px-5 pt-5 pb-4 flex items-center gap-3" style="padding-top: max(1.25rem, env(safe-area-inset-top));">
+    <div class="mark rounded-xl flex items-center justify-center flex-shrink-0">
+      <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z" />
+      </svg>
+    </div>
+    <div>
+      <h1 class="text-[17px] font-bold tracking-tight" style="color: var(--text)">JPG to PDF</h1>
+      <p class="text-xs mt-0.5" style="color: var(--text-faint)">แปลงรูปภาพเป็นไฟล์ PDF บนมือถือ</p>
+    </div>
+  </header>
+
+  <!-- Main -->
+  <main class="flex-1 px-5 pb-32 pt-5">
+
+    <!-- Empty state -->
+    <div id="emptyState" class="flex flex-col items-center justify-center py-14 text-center">
+      <div class="empty-ring rounded-3xl flex items-center justify-center mb-5">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8" style="color: var(--blue-bright)" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+        </svg>
+      </div>
+      <p class="text-sm font-medium" style="color: var(--text)">ยังไม่มีรูปภาพ</p>
+      <p class="text-xs mt-1" style="color: var(--text-faint)">แตะปุ่มด้านล่างเพื่อเริ่มต้น</p>
+    </div>
+
+    <!-- Image list -->
+    <div id="imageList" class="space-y-2.5"></div>
+  </main>
+
+  <!-- Bottom action bar -->
+  <div class="fixed bottom-0 left-0 right-0 z-20">
+    <div class="max-w-md mx-auto bottom-bar px-5 pt-4" style="padding-bottom: max(1.1rem, env(safe-area-inset-bottom));">
+
+      <div id="countBar" class="hidden items-center justify-between text-xs mb-3 px-0.5">
+        <span class="mono font-medium" style="color: var(--blue-bright)">● <span id="countText">0 รูป</span></span>
+        <button id="clearAllBtn" class="font-medium" style="color: var(--text-faint)">ล้างทั้งหมด</button>
+      </div>
+
+      <div class="flex gap-2.5">
+        <label class="flex-1">
+          <input type="file" id="galleryInput" accept="image/*" multiple class="hidden">
+          <div class="btn-ghost flex items-center justify-center gap-2 font-semibold rounded-2xl py-3.5 text-sm select-none">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-[18px] h-[18px]" style="color: var(--blue-bright)" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M18 12h.008v.008H18V12zm-12 6.75h12A2.25 2.25 0 0021.75 16.5V7.5A2.25 2.25 0 0019.5 5.25h-12A2.25 2.25 0 005.25 7.5v9a2.25 2.25 0 002.25 2.25z" />
+            </svg>
+            คลังภาพ
+          </div>
+        </label>
+        <label class="flex-1">
+          <input type="file" id="cameraInput" accept="image/*" capture="environment" class="hidden">
+          <div class="btn-ghost flex items-center justify-center gap-2 font-semibold rounded-2xl py-3.5 text-sm select-none">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-[18px] h-[18px]" style="color: var(--blue-bright)" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z" />
+            </svg>
+            ถ่ายรูป
+          </div>
+        </label>
+      </div>
+
+      <button id="convertBtn" class="btn-primary hidden w-full mt-2.5 font-bold rounded-2xl py-3.5 text-sm flex items-center justify-center gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 19.5v-15m0 0l-6 6m6-6l6 6" />
+        </svg>
+        แปลงเป็น PDF <span class="mono opacity-80">(<span id="convertCount">0</span>)</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Save PDF Modal -->
+<div id="saveModal" class="hidden fixed inset-0 z-40 items-end sm:items-center justify-center">
+  <div id="saveModalBackdrop" class="absolute inset-0" style="background: rgba(3,5,10,0.65); backdrop-filter: blur(2px);"></div>
+  <div class="modal-card relative w-full max-w-md rounded-t-3xl sm:rounded-3xl p-5 pb-6" style="padding-bottom: max(1.5rem, env(safe-area-inset-bottom));">
+    <div class="w-9 h-1 rounded-full mx-auto mb-4 sm:hidden" style="background: var(--border)"></div>
+    <div class="flex items-center gap-2.5 mb-1">
+      <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style="background: rgba(59,130,246,0.15)">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" style="color: var(--blue-bright)" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" />
+        </svg>
+      </div>
+      <h2 class="text-base font-bold" style="color: var(--text)">บันทึกไฟล์ PDF</h2>
+    </div>
+    <p class="text-xs mb-4 ml-10" style="color: var(--text-faint)">ตั้งชื่อไฟล์ก่อนบันทึก</p>
+
+    <label class="block text-xs font-medium mb-1.5" style="color: var(--text-dim)">ชื่อไฟล์</label>
+    <div class="field-input flex items-center rounded-2xl overflow-hidden mb-1">
+      <input id="fileNameInput" type="text" class="flex-1 px-4 py-3 text-sm outline-none min-w-0 bg-transparent" style="color: var(--text)" placeholder="ตั้งชื่อไฟล์" />
+      <span class="pr-4 text-sm mono select-none" style="color: var(--text-faint)">.pdf</span>
+    </div>
+    <p id="fileNameError" class="hidden text-xs mb-2 px-1" style="color: #F87171">กรุณาใส่ชื่อไฟล์</p>
+
+    <div class="flex gap-3 mt-4">
+      <button id="saveModalCancelBtn" class="btn-ghost flex-1 font-semibold rounded-2xl py-3.5 text-sm">
+        ยกเลิก
+      </button>
+      <button id="saveModalConfirmBtn" class="btn-primary flex-1 font-bold rounded-2xl py-3.5 text-sm">
+        บันทึก
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Success / Share Modal -->
+<div id="successModal" class="hidden fixed inset-0 z-40 items-end sm:items-center justify-center">
+  <div id="successModalBackdrop" class="absolute inset-0" style="background: rgba(3,5,10,0.65); backdrop-filter: blur(2px);"></div>
+  <div class="modal-card relative w-full max-w-md rounded-t-3xl sm:rounded-3xl p-5 pb-6 text-center" style="padding-bottom: max(1.5rem, env(safe-area-inset-bottom));">
+    <div class="w-9 h-1 rounded-full mx-auto mb-5 sm:hidden" style="background: var(--border)"></div>
+
+    <div class="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4" style="background: rgba(59,130,246,0.15); border: 1px solid rgba(59,130,246,0.3);">
+      <svg xmlns="http://www.w3.org/2000/svg" class="w-7 h-7" style="color: var(--blue-bright)" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+      </svg>
+    </div>
+
+    <h2 class="text-base font-bold mb-1" style="color: var(--text)">บันทึกไฟล์สำเร็จ</h2>
+    <p id="successFileName" class="text-xs mono mb-6 px-4 truncate" style="color: var(--text-faint)"></p>
+
+    <div class="flex flex-col gap-2.5">
+      <button id="shareBtn" class="btn-primary w-full font-bold rounded-2xl py-3.5 text-sm flex items-center justify-center gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M7.217 10.907a2.25 2.25 0 100 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186l9.566-5.314m-9.566 7.5l9.566 5.314m0 0a2.25 2.25 0 103.935 2.186 2.25 2.25 0 00-3.935-2.186zm0-12.814a2.25 2.25 0 103.933-2.185 2.25 2.25 0 00-3.933 2.185z" />
+        </svg>
+        แชร์ไปยังแอปอื่น
+      </button>
+      <button id="successCloseBtn" class="btn-ghost w-full font-semibold rounded-2xl py-3.5 text-sm">
+        เสร็จสิ้น
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="toast-el fixed top-4 left-1/2 -translate-x-1/2 z-50 text-sm px-4 py-2.5 rounded-xl opacity-0 pointer-events-none transition-opacity duration-300"></div>
+
+<script>
+(function () {
+  let images = []; // { id, file, dataUrl, rotation }
+  let nextId = 1;
+
+  const emptyState = document.getElementById('emptyState');
+  const imageList = document.getElementById('imageList');
+  const countBar = document.getElementById('countBar');
+  const countText = document.getElementById('countText');
+  const clearAllBtn = document.getElementById('clearAllBtn');
+  const convertBtn = document.getElementById('convertBtn');
+  const convertCount = document.getElementById('convertCount');
+  const galleryInput = document.getElementById('galleryInput');
+  const cameraInput = document.getElementById('cameraInput');
+  const toast = document.getElementById('toast');
+
+  const saveModal = document.getElementById('saveModal');
+  const saveModalBackdrop = document.getElementById('saveModalBackdrop');
+  const fileNameInput = document.getElementById('fileNameInput');
+  const fileNameError = document.getElementById('fileNameError');
+  const saveModalCancelBtn = document.getElementById('saveModalCancelBtn');
+  const saveModalConfirmBtn = document.getElementById('saveModalConfirmBtn');
+
+  const successModal = document.getElementById('successModal');
+  const successModalBackdrop = document.getElementById('successModalBackdrop');
+  const successFileName = document.getElementById('successFileName');
+  const shareBtn = document.getElementById('shareBtn');
+  const successCloseBtn = document.getElementById('successCloseBtn');
+  let lastSavedBlob = null;
+  let lastSavedFileName = '';
+
+  function defaultFileName() {
+    const d = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    return `converted-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`;
+  }
+
+  function sanitizeFileName(name) {
+    // ตัดอักขระที่ใช้ไม่ได้ในชื่อไฟล์ออก
+    return name.replace(/[\\/:*?"<>|]/g, '').trim();
+  }
+
+  function openSaveModal() {
+    fileNameInput.value = defaultFileName();
+    fileNameError.classList.add('hidden');
+    saveModal.classList.remove('hidden');
+    saveModal.classList.add('flex');
+    setTimeout(() => { fileNameInput.focus(); fileNameInput.select(); }, 50);
+  }
+
+  function closeSaveModal() {
+    saveModal.classList.add('hidden');
+    saveModal.classList.remove('flex');
+  }
+
+  saveModalBackdrop.addEventListener('click', closeSaveModal);
+  saveModalCancelBtn.addEventListener('click', closeSaveModal);
+  fileNameInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') saveModalConfirmBtn.click();
+  });
+
+  function openSuccessModal(blob, fileName) {
+    lastSavedBlob = blob;
+    lastSavedFileName = fileName;
+    successFileName.textContent = fileName;
+    // ซ่อนปุ่มแชร์ถ้าเบราว์เซอร์ไม่รองรับ Web Share API หรือแชร์ไฟล์ไม่ได้
+    const canShareFiles = !!(navigator.share && navigator.canShare && (() => {
+      try {
+        const testFile = new File([blob], fileName, { type: 'application/pdf' });
+        return navigator.canShare({ files: [testFile] });
+      } catch (e) { return false; }
+    })());
+    shareBtn.classList.toggle('hidden', !canShareFiles);
+    successModal.classList.remove('hidden');
+    successModal.classList.add('flex');
+  }
+
+  function closeSuccessModal() {
+    successModal.classList.add('hidden');
+    successModal.classList.remove('flex');
+    lastSavedBlob = null;
+    lastSavedFileName = '';
+  }
+
+  successModalBackdrop.addEventListener('click', closeSuccessModal);
+  successCloseBtn.addEventListener('click', closeSuccessModal);
+
+  shareBtn.addEventListener('click', async () => {
+    if (!lastSavedBlob) return;
+    try {
+      const file = new File([lastSavedBlob], lastSavedFileName, { type: 'application/pdf' });
+      await navigator.share({
+        files: [file],
+        title: lastSavedFileName,
+      });
+    } catch (err) {
+      // ผู้ใช้กดยกเลิกการแชร์ (AbortError) ไม่ต้องแจ้งเตือน — กรณีอื่นแจ้งเตือน
+      if (err && err.name !== 'AbortError') {
+        showToast('ไม่สามารถแชร์ไฟล์ได้');
+      }
+    }
+  });
+
+  function showToast(msg) {
+    toast.textContent = msg;
+    toast.style.opacity = '1';
+    setTimeout(() => { toast.style.opacity = '0'; }, 1800);
+  }
+
+  function readFile(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function handleFiles(fileList) {
+    const files = Array.from(fileList).filter(f => f.type.startsWith('image/'));
+    if (!files.length) return;
+    for (const file of files) {
+      try {
+        const dataUrl = await readFile(file);
+        images.push({ id: nextId++, file, dataUrl, rotation: 0 });
+      } catch (e) {
+        console.error('อ่านไฟล์ล้มเหลว', e);
+      }
+    }
+    render();
+  }
+
+  function render() {
+    imageList.innerHTML = '';
+    if (images.length === 0) {
+      emptyState.classList.remove('hidden');
+      countBar.classList.add('hidden');
+      countBar.classList.remove('flex');
+      convertBtn.classList.add('hidden');
+      return;
+    }
+    emptyState.classList.add('hidden');
+    countBar.classList.remove('hidden');
+    countBar.classList.add('flex');
+    convertBtn.classList.remove('hidden');
+    countText.textContent = images.length + ' รูป';
+    convertCount.textContent = images.length;
+
+    images.forEach((img, idx) => {
+      const row = document.createElement('div');
+      row.className = 'img-card flex items-center gap-3 rounded-2xl p-2.5 pl-4';
+
+      const rotClass = img.rotation === 90 ? 'rotate-90' : img.rotation === 180 ? 'rotate-180' : img.rotation === 270 ? 'rotate-270' : '';
+
+      row.innerHTML = `
+        <div class="thumb-frame w-16 h-16 rounded-xl overflow-hidden flex-shrink-0 flex items-center justify-center">
+          <img src="${img.dataUrl}" class="max-w-full max-h-full object-contain ${rotClass} transition-transform" />
+        </div>
+        <div class="flex-1 min-w-0">
+          <p class="text-xs font-semibold truncate" style="color: var(--text)"><span class="mono" style="color: var(--blue-bright)">${idx + 1}</span> · ${escapeHtml(img.file.name)}</p>
+          <p class="text-[11px] mono mt-0.5" style="color: var(--text-faint)">${formatSize(img.file.size)}</p>
+          <div class="flex gap-1.5 mt-2">
+            <button data-action="up" data-id="${img.id}" class="icon-btn w-7 h-7 flex items-center justify-center rounded-lg" ${idx === 0 ? 'disabled' : ''}>
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" /></svg>
+            </button>
+            <button data-action="down" data-id="${img.id}" class="icon-btn w-7 h-7 flex items-center justify-center rounded-lg" ${idx === images.length - 1 ? 'disabled' : ''}>
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>
+            </button>
+            <button data-action="rotate" data-id="${img.id}" class="icon-btn w-7 h-7 flex items-center justify-center rounded-lg">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" /></svg>
+            </button>
+            <button data-action="delete" data-id="${img.id}" class="icon-btn danger w-7 h-7 flex items-center justify-center rounded-lg">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg>
+            </button>
+          </div>
+        </div>
+      `;
+      imageList.appendChild(row);
+    });
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  function formatSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  }
+
+  imageList.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-action]');
+    if (!btn) return;
+    const id = Number(btn.dataset.id);
+    const action = btn.dataset.action;
+    const idx = images.findIndex(i => i.id === id);
+    if (idx === -1) return;
+
+    if (action === 'up' && idx > 0) {
+      [images[idx - 1], images[idx]] = [images[idx], images[idx - 1]];
+    } else if (action === 'down' && idx < images.length - 1) {
+      [images[idx + 1], images[idx]] = [images[idx], images[idx + 1]];
+    } else if (action === 'rotate') {
+      images[idx].rotation = (images[idx].rotation + 90) % 360;
+    } else if (action === 'delete') {
+      images.splice(idx, 1);
+    }
+    render();
+  });
+
+  clearAllBtn.addEventListener('click', () => {
+    if (images.length === 0) return;
+    if (confirm('ล้างรูปภาพทั้งหมดใช่หรือไม่?')) {
+      images = [];
+      render();
+    }
+  });
+
+  galleryInput.addEventListener('change', (e) => {
+    handleFiles(e.target.files);
+    e.target.value = '';
+  });
+  cameraInput.addEventListener('change', (e) => {
+    handleFiles(e.target.files);
+    e.target.value = '';
+  });
+
+  // Rotate an image dataURL into a new dataURL/canvas-based image according to rotation
+  function getRotatedImage(dataUrl, rotation) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        const swap = rotation === 90 || rotation === 270;
+        canvas.width = swap ? img.height : img.width;
+        canvas.height = swap ? img.width : img.height;
+        ctx.translate(canvas.width / 2, canvas.height / 2);
+        ctx.rotate((rotation * Math.PI) / 180);
+        ctx.drawImage(img, -img.width / 2, -img.height / 2);
+        resolve({ dataUrl: canvas.toDataURL('image/jpeg', 0.92), width: canvas.width, height: canvas.height });
+      };
+      img.onerror = reject;
+      img.src = dataUrl;
+    });
+  }
+
+  async function buildPdfBlob() {
+    const { jsPDF } = window.jspdf;
+    let pdf = null;
+
+    for (let i = 0; i < images.length; i++) {
+      const item = images[i];
+      const rotated = await getRotatedImage(item.dataUrl, item.rotation);
+      const isLandscape = rotated.width > rotated.height;
+      const orientation = isLandscape ? 'l' : 'p';
+
+      // ใช้ขนาดหน้ากระดาษเท่ากับสัดส่วนรูปภาพจริง (pt = px ที่ 72dpi) เพื่อไม่ให้มีขอบขาว
+      const pageFormat = [rotated.width, rotated.height];
+
+      if (!pdf) {
+        pdf = new jsPDF({ orientation, unit: 'pt', format: pageFormat });
+      } else {
+        pdf.addPage(pageFormat, orientation);
+      }
+
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+
+      // วาดภาพเต็มหน้าพอดี ไม่มีขอบขาว
+      pdf.addImage(rotated.dataUrl, 'JPEG', 0, 0, pageWidth, pageHeight);
+    }
+
+    return pdf.output('blob');
+  }
+
+  // บันทึกไฟล์: ถ้าเบราว์เซอร์รองรับ File System Access API จะเปิดหน้าต่างให้เลือกตำแหน่งเซฟได้จริง
+  // ถ้าไม่รองรับ (เช่น Safari บน iPhone) จะ fallback เป็นการดาวน์โหลดแบบปกติไปที่โฟลเดอร์ดาวน์โหลด
+  async function savePdfBlob(blob, fileName) {
+    if (window.showSaveFilePicker) {
+      try {
+        const handle = await window.showSaveFilePicker({
+          suggestedName: fileName,
+          types: [{ description: 'PDF Document', accept: { 'application/pdf': ['.pdf'] } }],
+        });
+        const writable = await handle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+        return 'picker';
+      } catch (err) {
+        if (err && err.name === 'AbortError') return 'cancelled';
+        // ถ้า picker ล้มเหลวด้วยเหตุผลอื่น ให้ fallback เป็นดาวน์โหลดปกติ
+      }
+    }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    return 'download';
+  }
+
+  convertBtn.addEventListener('click', () => {
+    if (images.length === 0) return;
+    openSaveModal();
+  });
+
+  saveModalConfirmBtn.addEventListener('click', async () => {
+    const rawName = sanitizeFileName(fileNameInput.value);
+    if (!rawName) {
+      fileNameError.classList.remove('hidden');
+      fileNameInput.focus();
+      return;
+    }
+    fileNameError.classList.add('hidden');
+    const fileName = rawName.toLowerCase().endsWith('.pdf') ? rawName : rawName + '.pdf';
+
+    const originalHtml = saveModalConfirmBtn.innerHTML;
+    saveModalConfirmBtn.disabled = true;
+    saveModalConfirmBtn.textContent = 'กำลังสร้าง PDF...';
+
+    try {
+      const blob = await buildPdfBlob();
+      const result = await savePdfBlob(blob, fileName);
+      if (result === 'cancelled') {
+        // ผู้ใช้กดยกเลิกหน้าต่างเลือกตำแหน่งเซฟ ไม่ต้องแจ้งเตือน
+      } else if (result === 'picker') {
+        closeSaveModal();
+        openSuccessModal(blob, fileName);
+      } else {
+        closeSaveModal();
+        openSuccessModal(blob, fileName);
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('เกิดข้อผิดพลาดในการสร้าง PDF');
+    } finally {
+      saveModalConfirmBtn.disabled = false;
+      saveModalConfirmBtn.innerHTML = originalHtml;
+    }
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
